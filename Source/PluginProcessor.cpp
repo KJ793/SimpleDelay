@@ -102,8 +102,10 @@ void SimpleDelayAudioProcessor::changeProgramName (int index, const juce::String
 //==============================================================================
 void SimpleDelayAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
-    // Use this method as the place to do any pre-playback
-    // initialisation that you need..
+    juce::ignoreUnused(samplesPerBlock);
+
+    gainSmoothed.reset(sampleRate, 0.05);   // glide time: 50 ms
+    gainSmoothed.setCurrentAndTargetValue(juce::Decibels::decibelsToGain(gainParam->load()));
 }
 
 void SimpleDelayAudioProcessor::releaseResources()
@@ -159,15 +161,15 @@ void SimpleDelayAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
     // the samples and the outer loop is handling the channels.
     // Alternatively, you can process the samples with the channels
     // interleaved by keeping the same state.
-    const float gain = juce::Decibels::decibelsToGain(gainParam->load());
+    gainSmoothed.setTargetValue(juce::Decibels::decibelsToGain(gainParam->load()));
 
-    for (int channel = 0; channel < totalNumInputChannels; ++channel)
+    for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
     {
-        auto* channelData = buffer.getWritePointer(channel);
+        const float gain = gainSmoothed.getNextValue();
 
-        for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
+        for (int channel = 0; channel < totalNumInputChannels; ++channel)
         {
-            channelData[sample] = channelData[sample] * gain;
+            buffer.getWritePointer(channel)[sample] *= gain;
         }
     }
 }
