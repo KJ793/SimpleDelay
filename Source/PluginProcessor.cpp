@@ -11,17 +11,26 @@
 
 //==============================================================================
 SimpleDelayAudioProcessor::SimpleDelayAudioProcessor()
-#ifndef JucePlugin_PreferredChannelConfigurations
-     : AudioProcessor (BusesProperties()
-                     #if ! JucePlugin_IsMidiEffect
-                      #if ! JucePlugin_IsSynth
-                       .withInput  ("Input",  juce::AudioChannelSet::stereo(), true)
-                      #endif
-                       .withOutput ("Output", juce::AudioChannelSet::stereo(), true)
-                     #endif
-                       )
-#endif
+    : AudioProcessor(BusesProperties()
+        .withInput("Input", juce::AudioChannelSet::stereo(), true)
+        .withOutput("Output", juce::AudioChannelSet::stereo(), true)),
+    apvts(*this, nullptr, "Parameters", createParameterLayout())
 {
+    gainParam = apvts.getRawParameterValue("gain");
+}
+
+juce::AudioProcessorValueTreeState::ParameterLayout SimpleDelayAudioProcessor::createParameterLayout()
+{
+    juce::AudioProcessorValueTreeState::ParameterLayout layout;
+
+    layout.add(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{ "gain", 1 },                       // internal ID, version
+        "Gain",                                                // name shown to the user
+        juce::NormalisableRange<float>(-60.0f, 12.0f, 0.1f),  // min, max, step
+        0.0f,                                                  // default value
+        juce::AudioParameterFloatAttributes().withLabel("dB")));
+
+    return layout;
 }
 
 SimpleDelayAudioProcessor::~SimpleDelayAudioProcessor()
@@ -150,13 +159,15 @@ void SimpleDelayAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
     // the samples and the outer loop is handling the channels.
     // Alternatively, you can process the samples with the channels
     // interleaved by keeping the same state.
+    const float gain = juce::Decibels::decibelsToGain(gainParam->load());
+
     for (int channel = 0; channel < totalNumInputChannels; ++channel)
     {
         auto* channelData = buffer.getWritePointer(channel);
 
         for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
         {
-            channelData[sample] = channelData[sample] * 0.5f;
+            channelData[sample] = channelData[sample] * gain;
         }
     }
 }
@@ -169,7 +180,7 @@ bool SimpleDelayAudioProcessor::hasEditor() const
 
 juce::AudioProcessorEditor* SimpleDelayAudioProcessor::createEditor()
 {
-    return new SimpleDelayAudioProcessorEditor (*this);
+    return new juce::GenericAudioProcessorEditor(*this);
 }
 
 //==============================================================================
